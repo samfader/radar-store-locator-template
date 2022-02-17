@@ -24,6 +24,9 @@ h1 {
     color: #101010;
   }
 
+  .table {
+  width: 30%;
+  }
 
 #map {
     position: absolute;
