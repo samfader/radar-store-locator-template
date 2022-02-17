@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Radar Web Store Locator Template</title>
+    <!-- radar sdk -->
+    <script src="https://js.radar.com/v3/radar.min.js"></script>
+
+    <!-- basemaps via MapLibre -->
+    <script src='https://unpkg.com/maplibre-gl@2.1.1/dist/maplibre-gl.js'></script>
+    <link href='https://unpkg.com/maplibre-gl@2.1.1/dist/maplibre-gl.css' rel='stylesheet' />
+
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css"
+        integrity="sha384-HSMxcRTRxnN+Bdg0JdbxYKrThecOKuH5zCYotlSAcp1+c8xmyTe9GYg1l9a69psu" crossorigin="anonymous">
+
+    <!-- Local CSS -->
+    <link rel="stylesheet" type="text/css" href="/styles.css" />
+
+    <!-- jQuery for loading bar -->
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+</head>
+
+<body>
+    <div id='sidebar'>
+        <div class="heading">
+            <h1>McRadar's Locations</h1>
+        </div>
+        <div id="listings" class="listings">
+            <div class="storeLocatorContent">
+                <div class="storeLocatorSearchContainer">
+                    <div class="form-group col-lg-2">
+                        <div class="form-group has-feedback">
+                            <input type="text" class="form-control" id="addressSearchInput"
+                                placeholder="Find a store" />
+                            <span class="glyphicon glyphicon-search form-control-feedback"></span>
+                        </div>
+                    </div>
+
+                    <button type="button" id="addressSearchBtn" class="btn btn-primary">Search</button>
+                </div>
+                <!-- <div id="searchResultsContainer">
+                    <table id="resultsTable">
+                    </table>
+                </div> -->
+                <div class="storeLocatorContainerDivider">
+                    <hr class="separator">
+                    <!-- TO DO: center the logo -->
+                    <div id="logo">
+                        <img src="logo.png">
+                    </div>
+                    <div>
+                        <table id="storeListings">
+                            <thead>
+                                <tr>
+                                    <th>Store Name</th>
+                                    <th>Hours</th>
+                                    <th>Wifi?</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div id='map'></div>
+            <div id="cover-spin"></div>
+        </div>
+        <script>
+            // Update these based on use case
+
+            // Tags to be used for geofence search. Only geofences (stores) with the tags listed here will show up on the map.
+            // String, comma separated if using multiple values (i.e. var tag = "cafe,restaurant" or var tag ="mcradars")
+            var tags = "mcradars"
+
+            const ENABLE_AUTOCOMPLETE = true;
+            const RADAR_TOKEN = "prj_test_pk_34485c992b0a89951fea67ae458c40f26711b944"
+
+            // meters from search point to include
+            const RADAR_SEARCH_RADIUS = 10000
+
+            // markers saved here
+            var currentMarkers = [];
+
+            Radar.initialize(RADAR_TOKEN);
+
+            var loadingSpinner = document.getElementById("cover-spin");
+            var logo = document.getElementById("logo");
+
+            // store results setup
+            var table = document.getElementById('storeListings');
+            var footer = table.createTFoot();
+            var tableRows = table.getElementsByTagName('tr');
+            var rowCount = tableRows.length;
+
+            loadingSpinner.style.display = "block";
+            Radar.trackOnce(function (err, result) {
+                if (!err) {
+                    console.log("ok");
+                    loadingSpinner.style.display = "none";
+                    const location = result.location;
+                    centerMap(location.latitude, location.longitude);
+                    searchUsingLocation(location);
+                }
+                else {
+                    loadingSpinner.style.display = "none";
+                    alert("Couldn't get location. Please use Search function.");
+                }
+            });
+
+            if (ENABLE_AUTOCOMPLETE) {
+                const resultsTable = document.getElementById("resultsTable");
+                document.getElementById("addressSearchInput").oninput = debounce(handleAutocomplete);
+            }
+
+            document.getElementById("addressSearchBtn").onclick = searchUsingInput;
+
+            var map = new maplibregl.Map({
+                container: 'map',
+                style: 'https://api.maptiler.com/maps/streets/style.json?key=JlT0uJuoZfMPXCXMCgQ5',
+                center: [-74.5, 40], // starting position [lng, lat]
+                minZoom: 9,
+                zoom: 3 // starting zoom
+            });
+
+            //Create all store locations around search and add to map
+            // getAllStoreLocations();
+
+            map.on('moveend', function () {
+                console.log('A moveend event occurred.');
+                // clearSidebar();
+                // getAllStoreLocations();
+                var { lng, lat } = map.getCenter();
+                var location = {
+                    longitude: lng,
+                    latitude: lat
+                }
+                searchUsingLocation(location);
+            });
+
+            /*
+        Leaflet Map Utilities
+            */
+
+            function clearMarkers() {
+                // remove markers 
+                if (currentMarkers !== null) {
+                    for (var i = currentMarkers.length - 1; i >= 0; i--) {
+                        currentMarkers[i].remove();
+                    }
+                }
+            }
+
+            function addMarker(coordinates, name, metadata) {
+                var lat = coordinates[1];
+                var lon = coordinates[0]
+                console.log("hi! coordinates are " + JSON.stringify(coordinates) + " and names are " + JSON.stringify(name) + " and metadata is " + JSON.stringify(metadata));
+                var marker = new maplibregl.Marker()
+                    .setLngLat([lon, lat])
+                    .addTo(map)
+
+                currentMarkers.push(marker);
+            }
+
+            function centerMap(lat, lon) {
+                map.jumpTo({
+                    center: [lon, lat],
+                    zoom: 11.5
+                });
+            }
+
+            /*
+           Radar Search Functions
+       */
+
+            // TO DO: add autocomplete https://www.w3schools.com/howto/howto_js_autocomplete.asp
+
+            function searchUsingLocation(location) {
+                Radar.searchGeofences({
+                    "near": location,
+                    "radius": RADAR_SEARCH_RADIUS,
+                    "tags": [tags],
+                    "limit": 10
+                }, function (err, result) {
+                    if (!err) {
+                        showNearbyLocations(result)
+                    }
+                })
+            }
+
+            function searchUsingInput() {
+                const searchValue = document.getElementById("addressSearchInput").value;
+
+                // Call Radar Geocode API to translate user's input into coordinates.
+                Radar.autocomplete({
+                    "query": searchValue
+                }, function (err, result) {
+
+                    //Ensure the Geocoding was succesful
+                    if (!err && result["addresses"].length > 0) {
+                        console.log("geocode result is " + JSON.stringify(result));
+
+                        const location = result["addresses"][0];
+
+                        centerMap(location.latitude, location.longitude);
+
+                        //Search for Peet's locations near this point
+                        Radar.searchGeofences({
+                            "near": location,
+                            "radius": 10000,
+                            "tags": [tags],
+                            "limit": 10
+                        }, function (err, result) {
+
+                            if (!err) {
+                                // clearMarkers();
+                                showNearbyLocations(result)
+                            }
+
+                        });
+
+                    }
+                });
+            }
+
+            function showNearbyLocations(result) {
+                //Present the user with the nearby locations
+                var geofences = result.geofences;
+                if (geofences.length > 0) {
+                    logo.style.display = "none";
+                    for (var i = 0; i < geofences.length; i++) {
+                        var coordinates = geofences[i]["geometryCenter"]["coordinates"];
+                        addMarker(coordinates, geofences[i]["description"], geofences[i]["metadata"], location);
+                    }
+                    addStoresToSidebar(true, geofences);
+                } else {
+                    logo.style.display = "block";
+                    addStoresToSidebar(false, geofences);
+                }
+            }
+
+            // var rowHeader = header.insertRow(0);
+
+            // add store info to sidebar
+            function addStoresToSidebar(show, geofences) {
+                console.log("show is " + show);
+
+                if (show) {
+                    clearSidebar();
+                    // for (var i = 0; i < geofences.length; i++) {
+                    geofences.forEach((geofence, index) => {
+                        var rowFooter = footer.insertRow(index);
+                        rowFooter.insertCell(0).innerHTML = geofence["description"]
+                        rowFooter.insertCell(1).innerHTML = geofence["metadata"]["Hours"]
+                        rowFooter.insertCell(2).innerHTML = geofence["metadata"]["Wifi"]
+                    });
+                } else {
+                    clearSidebar();
+                    clearMarkers();
+                    row = table.insertRow(0),
+                    cell1 = row.insertCell(0),
+
+                    cell1.innerHTML = '<br><br><br>No stores nearby, try again';
+                }
+            }
+
+            // clear table
+            function clearSidebar() {
+                console.log('clearing sidebidar...row count is ' + table.rows.length);
+                while (table.rows.length > 1) {
+                    table.deleteRow(1);
+                }
+            }
+
+            // debounce function
+            function debounce(func) {
+                const delay = 100;
+                let debounceTimer;
+                return function (...args) {
+                    const context = this;
+                    clearTimeout(debounceTimer);
+                    debounceTimer = setTimeout(() => func.apply(context, args), delay);
+                }
+            }
+
+            // when autocomplete-input value changes
+            function handleAutocomplete() {
+                const userInput = this.value;
+                if (!userInput.length) {
+                    deleteTableRows();
+                    return;
+                }
+            }
+
+            function setSearchInputWithValue(cell) {
+                document.getElementById("addressSearchInput").value = cell.innerHTML;
+                deleteTableRows();
+            }
+
+            //Autocomplete results are stored in an HTML table
+            function deleteTableRows() {
+                while (table.rows.length > 0) {
+                    table.deleteRow(0);
+                }
+            }
+
+            /*
+                Radar Function - Get All Store Locations (Using API directly)
+                https://radar.com/documentation/api#list-geofences
+            */
+
+            // function getAllStoreLocations() {
+            //     const xhr = new XMLHttpRequest();
+
+            //     let url = `https://api.radar.io/v1/geofences?limit=1000&tag=${tags}`;
+            //     console.log("url is " + url);
+
+            //     xhr.open('GET', url, true);
+
+            //     xhr.setRequestHeader('Authorization', RADAR_TOKEN);
+            //     xhr.setRequestHeader('Content-Type', 'application/json');
+            //     xhr.setRequestHeader('X-Radar-Device-Type', 'Web');
+
+            //     xhr.onload = () => {
+            //         let response;
+            //         try {
+            //             response = JSON.parse(xhr.response);
+
+            //         } catch (e) {
+            //             console.log("Couldn't load store locations");
+            //             return;
+            //         }
+
+            //         if (xhr.status == 200) {
+            //             var geofences = response["geofences"];
+            //             for (var i = 0; i < geofences.length; i++) {
+            //                 var coordinates = geofences[i]["geometryCenter"]["coordinates"];
+            //                 addMarker(coordinates, geofences[i]["description"], null);
+            //             }
+            //         } else {
+            //             console.log("Couldn't Load All Store Locations");
+            //         }
+            //     }
+
+            //     xhr.send();
+            // }
+
+        </script>
+</body>

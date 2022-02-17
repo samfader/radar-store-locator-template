@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+    <title>Radar Web Store Locator Template</title>
+    <!-- radar sdk -->
+    <script src="https://js.radar.com/v3/radar.min.js"></script>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.3.0/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.3.0/dist/MarkerCluster.Default.css" />
+
+    <!-- // Bootstrap -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css" integrity="sha384-HSMxcRTRxnN+Bdg0JdbxYKrThecOKuH5zCYotlSAcp1+c8xmyTe9GYg1l9a69psu" crossorigin="anonymous">
+
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.3.0/dist/leaflet.markercluster.js"></script>
+
+    <style>
+        html,
+        body {
+            height: 100%;
+            padding: 0;
+            margin: 0;
+        }
+
+        section {
+            text-align: center;
+        }
+
+        .storeLocatorContentLayout {
+            display: inline-block;
+            vertical-align: top;
+            width: 40%;
+            height: 400px;
+        }
+
+        .map {
+            vertical-align: top;
+            display: inline-block;
+            width: 40%;
+            height: 400px;
+        }
+
+        .storeLocatorContent {
+            display: block;
+            width: 100%;
+            height: 100%;
+            padding: 45px;
+            background-color: #f7f6f1;
+            box-sizing: border-box;
+        }
+
+        .storeLocatorHeader {
+            display: block;
+            width: 100%;
+            height: 50px;
+        }
+
+        .storeLocatorSearchContainer {
+            display: block;
+            width: 100%;
+            height: 50px;
+        }
+
+        .searchResultsContainer {
+            display: block;
+            width: 100%;
+            height: auto;
+        }
+
+        .storeLocatorContainerDivider {
+            display: block;
+            width: 100%;
+            height: 25px;
+        }
+
+        .storeLocatorContextSearch {
+            display: block;
+            width: 100%;
+            height: 50px;
+        }
+
+        .button {
+            vertical-align: top;
+            margin-top: 2px;
+            display: inline-block;
+            height: 30px;
+            width: 25%;
+            background-color: #937031;
+            border-color: transparent;
+            border-radius: 5px;
+            text-align: center;
+            font-family: Gotham A, Gotham B, sans-serif;
+            color: #ffffff;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+        }
+
+        .button:hover {
+            background-color: #b1883b;
+        }
+
+        .button:active {
+            border-color: #f7f6f1;
+            border-radius: 5px;
+            border-width: 1px;
+        }
+
+        .button2 {
+            vertical-align: top;
+            margin-top: 3px;
+            display: inline-block;
+            height: 30px;
+            width: 100%;
+            background-color: #f7f6f1;
+            border-radius: 5px;
+            border: 1px solid #000000;
+            text-align: center;
+            font-family: Gotham A, Gotham B, sans-serif;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+        }
+
+        .button2:hover {
+            background-color: #e7e6e2;
+        }
+
+        .button2:active {
+            border-color: #f7f6f1;
+            border-radius: 5px;
+            border: 1px solid #999999;
+        }
+
+        .input {
+            vertical-align: top;
+            display: inline-block;
+            height: 30px;
+            width: 70%;
+            border-radius: 5px;
+            border: 1px solid rgb(183, 183, 183);
+            text-align: center;
+            font-size: 1rem;
+        }
+
+        .header {
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: #937031;
+            font-family: Gotham A, Gotham B, sans-serif;
+            font-size: 1.5rem;
+            line-height: 1.75rem;
+            font-weight: 700;
+            text-size-adjust: 100%;
+        }
+
+        .separator {
+            text-transform: uppercase;
+            background-color: #b19f7d;
+            height: 1px;
+            width: 100%;
+            display: block;
+            border: none;
+        }
+
+        table {
+            width: 100%;
+        }
+
+        td {
+            width: 100%;
+            background-color: #ffffff;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+
+<body>
+    <section id="storeLocator" class="storeLocator">
+        <div class="storeLocatorContentLayout">
+            <div class="storeLocatorContent">
+                <div class="storeLocatorHeader">
+                    <!-- TODO: Update to use a variable here -->
+                    <label class="header">Find a McRadar's near you</label>
+                </div>
+                <div class="storeLocatorSearchContainer">
+                    <input type="text" placeholder="Enter an Address, Zip Code, or City" id="addressSearchInput"
+                        class="input">
+                    <button id="addressSearchBtn" class="button">Search</button>
+                </div>
+                <div id="searchResultsContainer">
+                    <table id="resultsTable">
+                    </table>
+                </div>
+                <div class="storeLocatorContainerDivider">
+                    <hr class="separator">
+                </div>
+                <div class="storeLocatorContextSearch">
+                    <button id="searchUsingLocationBtn" class="button2">Use my current location</button>
+                </div>
+            </div>
+        </div>
+        <div id="map" class="map"></div>
+    </section>
+
+    <script>
+
+        // Update these based on use case
+
+        // Tags to be used for geofence search. Only geofences (stores) with the tags listed here will show up on the map.
+        // String, comma separated if using multiple values (i.e. var tag = "cafe,restaurant" or var tag ="mcradars")
+        var tags = "mcradars"
+
+        const ENABLE_AUTOCOMPLETE = true;
+
+        Radar.initialize("prj_test_pk_34485c992b0a89951fea67ae458c40f26711b944");
+
+        if (ENABLE_AUTOCOMPLETE) {
+            const resultsTable = document.getElementById("resultsTable");
+            document.getElementById("addressSearchInput").oninput = debounce(handleAutocomplete);
+        }
+
+        document.getElementById("searchUsingLocationBtn").onclick = searchUsingLocation;
+        document.getElementById("addressSearchBtn").onclick = searchUsingInput;
+
+        // initialize Leaflet40.40756468505598, -99.27702771271201
+        var map = L.map('map', {
+            "center": [40.40756468505598, -99.27702771271201],
+            "zoom": 3
+        });
+
+        // add the OpenStreetMap tiles
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+            maxZoom: 20,
+            subdomains: 'abcd',
+            attribution: '&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap contributors</a>'
+        }).addTo(map);
+
+        //Create a marker group for easy clearing.
+        var markers = L.markerClusterGroup();
+        map.addLayer(markers);
+
+        //Create all Peet's Locations as Markers
+        getAllStoreLocations();
+
+        /*
+            Leaflet Map Utilities
+        */
+
+        function centerMap(radarLocation) {
+            var coordinates = [radarLocation["latitude"], radarLocation["longitude"]];
+            map.flyTo(coordinates, 12);
+        }
+
+        function clearMarkers() {
+            markers.clearLayers();
+        }
+
+        function addMarker(coordinates, name, origin) {
+
+            //Leaflet Marker Popups don't work on Safari (Current Bug)
+
+            //If an route origin is specified, calculate travel info for this location.
+            if (origin) {
+                createMarkerPopupWithRouteInfo(origin, coordinates, name)
+            } else {
+                var marker = new L.marker({ lon: coordinates[0], lat: coordinates[1] });
+                marker.bindPopup(name);
+                markers.addLayer(marker);
+            }
+        }
+
+        function createMarkerPopupWithRouteInfo(origin, destination, description) {
+            const travelModes = ["foot", "car"];
+
+            delete origin["accuracy"];
+
+            var routingOptions = {
+                "origin": origin,
+                "destination": { "latitude": destination[1], "longitude": destination[0] },
+                "modes": travelModes,
+                "units": "imperial"
+            };
+
+            //Retrieve the distance and travel times to this Peet Location
+            Radar.getDistance(routingOptions, function (err, result) {
+                if (!err) {
+                    var distance = result["routes"]["geodesic"]["distance"]["text"];
+                    var footTime = result["routes"]["foot"]["duration"]["text"];
+                    var carTime = result["routes"]["car"]["duration"]["text"];
+
+                    var popupText = `${description} <br> Distance: ${distance} <br> Travel Time by Foot: ${footTime} <br> Travel Time by Car: ${carTime}`;
+
+                    var marker = new L.marker({ lon: destination[0], lat: destination[1] });
+                    marker.bindPopup(popupText);
+                    markers.addLayer(marker);
+                }
+            });
+        }
+
+        /*
+            Radar Search Functions
+        */
+
+        function searchUsingLocation() {
+            clearMarkers();
+            // Request the user's device location. This will prompt the user for permission.
+            Radar.trackOnce(function (err, result) {
+                if (!err) {
+                    const location = result.location;
+
+                    centerMap(location);
+
+                    //Use the coordinates retrieved to find nearby Peet's locations.
+                    Radar.searchGeofences({
+                        "near": location,
+                        "radius": 10000,
+                        "tags": [tags],
+                        "limit": 10
+                    }, function (err, result) {
+                        if (!err) {
+                            //Present the user with the nearby locations
+                            var geofences = result.geofences;
+
+                            for (var i = 0; i < geofences.length; i++) {
+                                var coordinates = geofences[i]["geometryCenter"]["coordinates"];
+                                addMarker(coordinates, geofences[i]["description"], location);
+                            }
+                        }
+                    })
+                }
+            });
+        }
+
+        function searchUsingInput() {
+            const searchValue = document.getElementById("addressSearchInput").value;
+
+            // Call Radar Geocode API to translate user's input into coordinates.
+            Radar.geocode({
+                "query": searchValue
+            }, function (err, result) {
+
+                //Ensure the Geocoding was succesful
+                if (!err && result["addresses"].length > 0) {
+
+                    const location = result["addresses"][0];
+
+                    centerMap(location);
+
+                    //Search for Peet's locations near this point
+                    Radar.searchGeofences({
+                        "near": location,
+                        "radius": 10000,
+                        "tags": [tags],
+                        "limit": 10
+                    }, function (err, result) {
+
+                        if (!err) {
+                            clearMarkers();
+                            //Present the user with the nearby locations
+                            var geofences = result.geofences;
+
+                            for (var i = 0; i < geofences.length; i++) {
+                                var coordinates = geofences[i]["geometryCenter"]["coordinates"];
+                                addMarker(coordinates, geofences[i]["description"], location);
+                            }
+                        }
+
+                    });
+
+                }
+            });
+        }
+
+        /*
+            Autocomplete
+        */
+
+        // debounce function
+        function debounce(func) {
+            const delay = 100;
+            let debounceTimer;
+            return function (...args) {
+                const context = this;
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(() => func.apply(context, args), delay);
+            }
+        }
+
+        // when autocomplete-input value changes
+        function handleAutocomplete() {
+
+            const userInput = this.value;
+            if (!userInput.length) {
+                deleteTableRows();
+                return;
+            }
+
+            // call Radar Autocomplete API using the user's input and limit to 5 results
+            Radar.autocomplete({ query: userInput, limit: 4 }, function (err, result) {
+                if (!err) {
+
+                    deleteTableRows();
+                    const addresses = result.addresses;
+
+                    //Gather addresses to present to user.
+                    for (i = addresses.length - 1; i >= 0; i--) {
+                        var address = addresses[i].formattedAddress;
+
+                        //Autocomplete results are store in a HTML table
+                        var row = resultsTable.insertRow(0);
+
+                        var cell = row.insertCell(0);
+                        cell.innerHTML = address;
+                        cell.onclick = function () { setSearchInputWithValue(this) };
+                    }
+                }
+            });
+        }
+
+        function setSearchInputWithValue(cell) {
+            document.getElementById("addressSearchInput").value = cell.innerHTML;
+            deleteTableRows();
+        }
+
+        //Autocomplete results are stored in an HTML table
+        function deleteTableRows() {
+            while (resultsTable.rows.length > 0) {
+                resultsTable.deleteRow(0);
+            }
+        }
+
+        /*
+            Radar Function - Get All Store Locations (Using API directly)
+            https://radar.com/documentation/api#list-geofences
+        */
+
+        function getAllStoreLocations() {
+            const xhr = new XMLHttpRequest();
+
+            let url = "https://api.radar.io/v1/geofences?limit=1000&tag=store";
+
+            xhr.open('GET', url, true);
+
+            xhr.setRequestHeader('Authorization', "prj_test_sk_80e014d18d8f658703c102dd189fedf64c1f2a26");
+            xhr.setRequestHeader('Content-Type', 'application/json');
+            xhr.setRequestHeader('X-Radar-Device-Type', 'Web');
+
+            xhr.onload = () => {
+                let response;
+                try {
+                    response = JSON.parse(xhr.response);
+
+                } catch (e) {
+                    console.log("Couldn't Load All Store Locations");
+                    return;
+                }
+
+                if (xhr.status == 200) {
+                    var geofences = response["geofences"];
+                    for (var i = 0; i < geofences.length; i++) {
+                        var coordinates = geofences[i]["geometryCenter"]["coordinates"];
+                        addMarker(coordinates, geofences[i]["description"], null);
+                    }
+                } else {
+                    console.log("Couldn't Load All Store Locations");
+                }
+            }
+
+            xhr.send();
+        }
+
+    </script>
+</body>
+
+</html>
