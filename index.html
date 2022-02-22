@@ -31,7 +31,7 @@
                 <div class="storeLocatorSearchContainer">
                     <div class="form-group col-lg-2">
                         <div class="form-group has-feedback">
-                            <input type="text" class="form-control" id="addressSearchInput"
+                            <input type="search" list="autocompleteResults" class="form-control" id="addressSearchInput"
                                 placeholder="Find a store" />
                             <span class="glyphicon glyphicon-search form-control-feedback"></span>
                         </div>
@@ -39,10 +39,11 @@
 
                     <button type="button" id="addressSearchBtn" class="btn btn-primary">Search</button>
                 </div>
-                <!-- <div id="searchResultsContainer">
+                <div id="searchResultsContainer">
                     <table id="resultsTable">
+
                     </table>
-                </div> -->
+                </div>
                 <div class="storeLocatorContainerDivider">
                     <hr class="separator">
                     <!-- TO DO: center the logo -->
@@ -56,6 +57,7 @@
                                     <th scope="col">Store Name</th>
                                     <th scope="col">Hours</th>
                                     <th scope="col">Wifi?</th>
+                                    <th scope="col">Distance</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -64,6 +66,13 @@
                     </div>
                 </div>
             </div>
+
+            <datalist id="autocompleteResults">
+                <!-- <option value="Option 1">
+                <option value="Option 2">
+                <option value="Option 3"> -->
+            </datalist>
+
             <div id='map'></div>
             <div id="cover-spin"></div>
         </div>
@@ -109,10 +118,10 @@
                 }
             });
 
-            if (ENABLE_AUTOCOMPLETE) {
-                const resultsTable = document.getElementById("resultsTable");
-                document.getElementById("addressSearchInput").oninput = debounce(handleAutocomplete);
-            }
+            // if (ENABLE_AUTOCOMPLETE) {
+            const resultsTable = document.getElementById("resultsTable");
+            document.getElementById("addressSearchInput").oninput = debounce(handleAutocomplete);
+            // }
 
             document.getElementById("addressSearchBtn").onclick = searchUsingInput;
 
@@ -139,6 +148,21 @@
                 searchUsingLocation(location);
             });
 
+            // on click show popup
+            // map.on('click', (e) => {
+            //     console.log(e);
+            //     var lat = e.lngLat.lat;
+            //     var lng = e.lngLat.lng;
+            //     var coordinates = e.lngLat;
+            //     // var distance = calculateDistance(lat, lng)
+            //     var distance = "5 miles"
+            //     console.log(" in on click, distance is " + distance);
+            //     new maplibregl.Popup()
+            //         .setLngLat(coordinates)
+            //         .setHTML(distance)
+            //         .addTo(map);
+            // })
+
             /*
         Leaflet Map Utilities
             */
@@ -152,12 +176,26 @@
                 }
             }
 
+
+
             function addMarker(coordinates, name, metadata) {
                 var lat = coordinates[1];
                 var lon = coordinates[0]
+
+                // create the popup
+                var popup = new maplibregl.Popup({ offset: 25 }).setHTML(
+                    '<h4>Store name</h4>' + name +
+                    '<h4>Hours</h4>' + metadata["Hours"] +
+                    '<h4>Wifi?</h4>' + metadata["Wifi"]
+                );
+
+                // create DOM element for the marker
+                var el = document.createElement('div');
+                el.id = 'marker';
                 console.log("hi! coordinates are " + JSON.stringify(coordinates) + " and names are " + JSON.stringify(name) + " and metadata is " + JSON.stringify(metadata));
                 var marker = new maplibregl.Marker()
                     .setLngLat([lon, lat])
+                    .setPopup(popup)
                     .addTo(map)
 
                 currentMarkers.push(marker);
@@ -184,24 +222,49 @@
                     "limit": 10
                 }, function (err, result) {
                     if (!err) {
-                        showNearbyLocations(result)
+                        showNearbyLocations(result, location)
                     }
                 })
             }
 
             function searchUsingInput() {
                 const searchValue = document.getElementById("addressSearchInput").value;
+                console.log("search value is " + searchValue);
 
-                // Call Radar Geocode API to translate user's input into coordinates.
+                // Call Radar autocomplete API to translate user's input into coordinates.
                 Radar.autocomplete({
-                    "query": searchValue
+                    "query": searchValue,
+                    "limit": 4
                 }, function (err, result) {
-
                     //Ensure the Geocoding was succesful
                     if (!err && result["addresses"].length > 0) {
-                        console.log("geocode result is " + JSON.stringify(result));
+                        // console.log("geocode result is " + JSON.stringify(result));
 
                         const location = result["addresses"][0];
+                        deleteTableRows();
+                        const addresses = result.addresses;
+
+                        //Gather addresses to present to user.
+                        for (i = addresses.length - 1; i >= 0; i--) {
+                            var address = addresses[i].formattedAddress;
+                            console.log("in for loop address is " + address)
+
+                            //Autocomplete results are store in a HTML table
+
+                            // // add items to autocomplete list
+                            // var list = document.getElementById('autocompleteResults');
+
+                            // var option = document.createElement('option');
+                            // option.value = adress;
+                            // list.appendChild(option);
+
+                            console.log("results table is " + JSON.stringify(resultsTable));
+                            var row = resultsTable.insertRow(0);
+
+                            var cell = row.insertCell(0);
+                            cell.innerHTML = address;
+                            cell.onclick = function () { setSearchInputWithValue(this) };
+                        }
 
                         centerMap(location.latitude, location.longitude);
 
@@ -215,7 +278,8 @@
 
                             if (!err) {
                                 // clearMarkers();
-                                showNearbyLocations(result)
+                                console.log("searching geofences result is " + JSON.stringify(result));
+                                showNearbyLocations(result, location)
                             }
 
                         });
@@ -224,36 +288,66 @@
                 });
             }
 
-            function showNearbyLocations(result) {
+            function showNearbyLocations(result, userLocation) {
                 //Present the user with the nearby locations
                 var geofences = result.geofences;
+                // console.log("show nearby locations result is " + JSON.stringify(result));
                 if (geofences.length > 0) {
                     logo.style.display = "none";
                     for (var i = 0; i < geofences.length; i++) {
                         var coordinates = geofences[i]["geometryCenter"]["coordinates"];
                         addMarker(coordinates, geofences[i]["description"], geofences[i]["metadata"], location);
                     }
-                    addStoresToSidebar(true, geofences);
+                    addStoresToSidebar(true, geofences, userLocation);
                 } else {
                     logo.style.display = "block";
-                    addStoresToSidebar(false, geofences);
+                    addStoresToSidebar(false, geofences, userLocation);
                 }
             }
 
-            // var rowHeader = header.insertRow(0);
 
             // add store info to sidebar
-            function addStoresToSidebar(show, geofences) {
+            function addStoresToSidebar(show, geofences, userLocation) {
                 console.log("show is " + show);
 
+                console.log("user location here is " + JSON.stringify(userLocation));
                 if (show) {
                     clearSidebar();
                     // for (var i = 0; i < geofences.length; i++) {
                     geofences.forEach((geofence, index) => {
                         var rowFooter = footer.insertRow(index);
-                        rowFooter.insertCell(0).innerHTML = geofence["description"]
-                        rowFooter.insertCell(1).innerHTML = geofence["metadata"]["Hours"]
-                        rowFooter.insertCell(2).innerHTML = geofence["metadata"]["Wifi"]
+                        var geofenceCoords = { "longitude": geofence.geometryCenter.coordinates[0], "latitude": geofence.geometryCenter.coordinates[1] };
+                        // console.log("geofence coords are " + JSON.stringify(geofenceCoords));
+                        // var distance = calculateDistance(userLocation, geofenceCoords);
+                        Radar.getDistance({
+                            origin: {
+                                latitude: userLocation.latitude,
+                                longitude: userLocation.longitude
+                            },
+                            destination: {
+                                latitude: geofence.geometryCenter.coordinates[1],
+                                longitude: geofence.geometryCenter.coordinates[0]
+                            },
+                            modes: [
+                                'foot',
+                                'car'
+                            ],
+                            units: 'imperial'
+                        }, function (err, result) {
+                            if (!err) {
+                                console.log("calculate distance result is " + JSON.stringify(result))
+                                rowFooter.insertCell(0).innerHTML = geofence["description"]
+                                rowFooter.insertCell(1).innerHTML = geofence["metadata"]["Hours"]
+                                rowFooter.insertCell(2).innerHTML = geofence["metadata"]["Wifi"]
+                                rowFooter.insertCell(3).innerHTML = result["routes"]["geodesic"]["distance"]["text"];
+                                // return result.routes.car.distance.text;
+                            }
+                        });
+                        // console.log("and the distance is " + JSON.stringify(distance));
+                        // rowFooter.insertCell(0).innerHTML = geofence["description"]
+                        // rowFooter.insertCell(1).innerHTML = geofence["metadata"]["Hours"]
+                        // rowFooter.insertCell(2).innerHTML = geofence["metadata"]["Wifi"]
+                        // rowFooter.insertCell(3).innerHTML = distance;
                     });
                 } else {
                     clearSidebar();
@@ -263,6 +357,30 @@
 
                         cell1.innerHTML = '<br><br><br>No stores nearby, try again';
                 }
+            }
+
+            // distance calculation for sidebar
+            function calculateDistance(userLocation, geofenceCoords) {
+                Radar.getDistance({
+                    origin: {
+                        latitude: userLocation.latitude,
+                        longitude: userLocation.longitude
+                    },
+                    destination: {
+                        latitude: geofenceCoords.latitude,
+                        longitude: geofenceCoords.longitude
+                    },
+                    modes: [
+                        'foot',
+                        'car'
+                    ],
+                    units: 'imperial'
+                }, function (err, result) {
+                    if (!err) {
+                        console.log("calculate distance result is " + JSON.stringify(result))
+                        return result.routes.car.distance.text;
+                    }
+                });
             }
 
             // clear table
@@ -287,6 +405,7 @@
             // when autocomplete-input value changes
             function handleAutocomplete() {
                 const userInput = this.value;
+                console.log("user input is " + userInput);
                 if (!userInput.length) {
                     deleteTableRows();
                     return;
