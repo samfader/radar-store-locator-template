@@ -148,21 +148,6 @@
                 searchUsingLocation(location);
             });
 
-            // on click show popup
-            // map.on('click', (e) => {
-            //     console.log(e);
-            //     var lat = e.lngLat.lat;
-            //     var lng = e.lngLat.lng;
-            //     var coordinates = e.lngLat;
-            //     // var distance = calculateDistance(lat, lng)
-            //     var distance = "5 miles"
-            //     console.log(" in on click, distance is " + distance);
-            //     new maplibregl.Popup()
-            //         .setLngLat(coordinates)
-            //         .setHTML(distance)
-            //         .addTo(map);
-            // })
-
             /*
         Leaflet Map Utilities
             */
@@ -175,8 +160,6 @@
                     }
                 }
             }
-
-
 
             function addMarker(coordinates, name, metadata) {
                 var lat = coordinates[1];
@@ -343,19 +326,14 @@
                                 // return result.routes.car.distance.text;
                             }
                         });
-                        // console.log("and the distance is " + JSON.stringify(distance));
-                        // rowFooter.insertCell(0).innerHTML = geofence["description"]
-                        // rowFooter.insertCell(1).innerHTML = geofence["metadata"]["Hours"]
-                        // rowFooter.insertCell(2).innerHTML = geofence["metadata"]["Wifi"]
-                        // rowFooter.insertCell(3).innerHTML = distance;
                     });
                 } else {
                     clearSidebar();
                     clearMarkers();
-                    row = table.insertRow(0),
-                        cell1 = row.insertCell(0),
+                    // row = table.insertRow(0);
+                    // cell1 = row.insertCell(0);
 
-                        cell1.innerHTML = '<br><br><br>No stores nearby, try again';
+                    // cell1.innerHTML = '<br><br><br>No stores nearby, try again';
                 }
             }
 
