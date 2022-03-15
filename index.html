@@ -34,6 +34,17 @@
                 </div>
                 <div id="listings" class="listings">
                     <div class="storeLocatorContent">
+                        <div class="storeLocatorSearchContainer">
+                            <div class="form-group col-md-2">
+                                <div class="form-group has-feedback">
+                                    <input type="search" list="autocompleteResults" class="form-control"
+                                        id="addressSearchInput" placeholder="Find a store" />
+                                    <span class="glyphicon glyphicon-search form-control-feedback"></span>
+                                </div>
+                            </div>
+
+                            <button type="button" id="addressSearchBtn" class="btn btn-primary">Search</button>
+                        </div>
                         <div class="storeLocatorContainerDivider">
                             <hr class="separator">
                             <!-- TO DO: center the logo -->
@@ -85,9 +96,11 @@
                 else {
                     loadingSpinner.style.display = "none";
                     // Radar.trackOnce is being called twice for some reason, so this error always throws.
-                    throw(err);
+                    throw (err);
                 }
             });
+
+            document.getElementById("addressSearchBtn").onclick = searchUsingInput;
 
             // Initialize the map - https://maplibre.org/
             var map = new maplibregl.Map({
@@ -131,7 +144,7 @@
                 // create DOM element for the marker
                 var el = document.createElement('div');
                 const markerColor = type === 'location' ? 'red' : 'blue';
-                var marker = new maplibregl.Marker({color: markerColor})
+                var marker = new maplibregl.Marker({ color: markerColor })
                     .setLngLat([lon, lat])
                     .setPopup(popup)
                     .addTo(map)
@@ -174,6 +187,23 @@
                 })
             }
 
+            function searchUsingInput() {
+                const searchValue = document.getElementById("addressSearchInput").value;
+                console.log("search value is " + searchValue);
+
+                Radar.autocomplete({
+                    "query": searchValue,
+                    "limit": 4
+                }, function (err, result) {
+                    //Ensure the Geocoding was succesful
+                    if (!err && result["addresses"].length > 0) {
+                        const location = result["addresses"][0];
+                        searchUsingLocation(location)
+                        centerMap(location.latitude, location.longitude);
+                    }
+                });
+            }
+
             // One call to Radar Matrix API to get distances to all locations
             function getMatrices(userLocation, geofenceCoords) {
                 return new Promise((resolve, reject) => {
@@ -188,10 +218,10 @@
                             units: 'imperial'
                         }, (err, result) => {
                             if (err) reject(err);
-                            if(result.matrix) {
+                            if (result.matrix) {
                                 resolve(result.matrix);
                             }
-                    });
+                        });
                 });
             }
 
@@ -225,7 +255,7 @@
                                 <td>${curr.matrixResults.duration.text}</td>
                             </tr>`;
                         return `${prev}${item}`;
-                        }, "");
+                    }, "");
 
                     containerEl.innerHTML = `
                         <table class="table">
@@ -262,8 +292,8 @@
                         const { geometryCenter, description, metadata } = geofence;
                         addMarker('result', geometryCenter.coordinates, description, metadata, location);
 
-                        const fenceCoords = { 
-                            "longitude": geometryCenter.coordinates[0], 
+                        const fenceCoords = {
+                            "longitude": geometryCenter.coordinates[0],
                             "latitude": geometryCenter.coordinates[1]
                         }
                         geofenceCoords.push(fenceCoords);
@@ -273,7 +303,7 @@
                             const preparedSidebarItems = prepareSidebar(geofences, matrices);
                             renderSidebar(preparedSidebarItems, "storeListings");
                         }).catch(err => {
-                            throw(err)
+                            throw (err)
                         });
                 } else {
                     logo.style.display = "block";
