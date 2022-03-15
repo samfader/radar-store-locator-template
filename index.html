@@ -19,11 +19,14 @@
 
     <!-- jQuery for loading bar -->
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <style>
+
+    </style>
 
 </head>
 
 <body>
-    <div class="" container-fluid">
+    <div class="" container-fluid>
         <div class="row row-no-gutters">
             <div id='sidebar' class="col-md-12">
                 <div class="heading">
@@ -31,38 +34,12 @@
                 </div>
                 <div id="listings" class="listings">
                     <div class="storeLocatorContent">
-                        <div class="storeLocatorSearchContainer">
-                            <div class="form-group has-feedback col-lg-2">
-                                <input type="search" list="autocompleteResults" class="form-control"
-                                    id="addressSearchInput" placeholder="Find a store" />
-                                <span class="glyphicon glyphicon-search form-control-feedback"></span>
-                            </div>
-                            <button type="button" id="addressSearchBtn" class="btn btn-primary">Search</button>
-                        </div>
-                        <div id="searchResultsContainer" class=".col-md-1">
-                            <table id="resultsTable" class="table">
-
-                            </table>
-                        </div>
                         <div class="storeLocatorContainerDivider">
                             <hr class="separator">
                             <!-- TO DO: center the logo -->
                             <div id="logo">
-                                <img src="logo.png">
                             </div>
-                            <div class="table-responsive">
-                                <table id="storeListings" class="table">
-                                    <thead>
-                                        <tr>
-                                            <th scope="col">Store Name</th>
-                                            <th scope="col">Hours</th>
-                                            <th scope="col">Wifi?</th>
-                                            <th scope="col">Distance</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                    </tbody>
-                                </table>
+                            <div id="storeListings">
                             </div>
                         </div>
                     </div>
@@ -85,6 +62,7 @@
 
             // markers saved here
             var currentMarkers = [];
+            let centerMarker;
 
             // Initialize Radar
             Radar.initialize(RADAR_TOKEN);
@@ -92,33 +70,24 @@
             var loadingSpinner = document.getElementById("cover-spin");
             var logo = document.getElementById("logo");
 
-            // store results setup
-            var table = document.getElementById('storeListings');
-            var footer = table.createTFoot();
-            var tableRows = table.getElementsByTagName('tr');
-            var rowCount = tableRows.length;
-
             loadingSpinner.style.display = "block";
 
-            // Request user's location
-            Radar.trackOnce(function (err, result) {
+            /** 
+             * Request user's location, then center the map and add a marker.
+            */
+            Radar.trackOnce((err, result) => {
                 if (!err) {
                     loadingSpinner.style.display = "none";
-                    const location = result.location;
-                    centerMap(location.latitude, location.longitude);
-                    searchUsingLocation(location);
+                    addMarker('location', [result.location.longitude, result.location.latitude]);
+                    centerMap(result.location.latitude, result.location.longitude);
+                    //searchUsingLocation(location);
                 }
                 else {
                     loadingSpinner.style.display = "none";
-                    alert("Couldn't get location. Please use Search function.");
+                    // Radar.trackOnce is being called twice for some reason, so this error always throws.
+                    throw(err);
                 }
             });
-
-            // Set up search results table
-            const resultsTable = document.getElementById("resultsTable");
-            document.getElementById("addressSearchInput").oninput = debounce(handleAutocomplete);
-
-            document.getElementById("addressSearchBtn").onclick = searchUsingInput;
 
             // Initialize the map - https://maplibre.org/
             var map = new maplibregl.Map({
@@ -139,38 +108,39 @@
                     latitude: lat
                 }
                 searchUsingLocation(location);
+                centerMarker.setLngLat([lng, lat]);
             });
 
-            // remove markers from the map
-            function clearMarkers() {
-                if (currentMarkers !== null) {
-                    for (var i = currentMarkers.length - 1; i >= 0; i--) {
-                        currentMarkers[i].remove();
-                    }
-                }
-            }
-
             // Add markers to the map based on coordinates
-            function addMarker(coordinates, name, metadata) {
+            function addMarker(type, coordinates, name, metadata) {
                 var lat = coordinates[1];
                 var lon = coordinates[0]
 
                 // create the popup
                 var popup = new maplibregl.Popup({ offset: 25 }).setHTML(
-                    '<h4>Store name</h4>' + name +
-                    '<h4>Hours</h4>' + metadata["Hours"] +
-                    '<h4>Wifi?</h4>' + metadata["Wifi"]
+                    type === 'location' ?
+                        '<p><strong>Matrix origin</strong></p>' :
+                        `<h4>Store name</h4> 
+                        ${name}
+                        <h4>Hours</h4>
+                        ${metadata["Hours"]}
+                        <h4>Wifi?</h4>
+                        ${metadata["Wifi"]}`
                 );
 
                 // create DOM element for the marker
                 var el = document.createElement('div');
-                el.id = 'marker';
-                var marker = new maplibregl.Marker()
+                const markerColor = type === 'location' ? 'red' : 'blue';
+                var marker = new maplibregl.Marker({color: markerColor})
                     .setLngLat([lon, lat])
                     .setPopup(popup)
                     .addTo(map)
 
-                currentMarkers.push(marker);
+                if (type !== 'location') {
+                    currentMarkers.push(marker);
+                } else {
+                    centerMarker = marker;
+                }
             }
 
             function centerMap(lat, lon) {
@@ -180,8 +150,17 @@
                 });
             }
 
+            // Remove markers from the map
+            function clearMarkers() {
+                if (currentMarkers !== null) {
+                    for (var i = currentMarkers.length - 1; i >= 0; i--) {
+                        currentMarkers[i].remove();
+                    }
+                }
+            }
+
             // Use Radar search geofences API (https://radar.com/documentation/api#search-geofences)
-            // to show nearby locations on the map
+            // to request nearby geofences
             function searchUsingLocation(location) {
                 Radar.searchGeofences({
                     "near": location,
@@ -190,164 +169,111 @@
                     "limit": 10
                 }, function (err, result) {
                     if (!err) {
-                        showNearbyLocations(result, location)
+                        /* 🍕🍕🍕🍕🍕🍕🍕🍕🍕🍕🍕🍕🍕🍕🍕🍕🍕🍕🍕🍕🍕🍕🍕🍕🍕🍕 */
+                        updateStores(result.geofences.length > 0, result.geofences, location)
                     }
                 })
             }
 
-            function searchUsingInput() {
-                const searchValue = document.getElementById("addressSearchInput").value;
-
-                // Call Radar geocoding API (https://radar.com/documentation/api#geocoding) to 
-                //translate user's input into coordinates.
-                Radar.geocode({
-                    "query": searchValue
-                }, function (err, result) {
-                    if (!err && result["addresses"].length > 0) {
-
-                        const location = result["addresses"][0];
-
-                        // Center the map and search geofences around the geocoded point
-                        centerMap(location.latitude, location.longitude);
-                        Radar.searchGeofences({
-                            "near": location,
-                            "radius": 10000,
-                            "tags": [tags],
-                            "limit": 10
-                        }, function (err, result) {
-
-                            if (!err) {
-                                showNearbyLocations(result, location)
-                            }
-                        });
-
-                    }
-                });
-            }
-
-            // Responsible for adding map markers and updating the sidebar
-            function showNearbyLocations(result, userLocation) {
-                //Present the user with the nearby locations
-                var geofences = result.geofences;
-                if (geofences.length > 0) {
-                    logo.style.display = "none";
-                    for (var i = 0; i < geofences.length; i++) {
-                        var coordinates = geofences[i]["geometryCenter"]["coordinates"];
-                        addMarker(coordinates, geofences[i]["description"], geofences[i]["metadata"], location);
-                    }
-                    addStoresToSidebar(true, geofences, userLocation);
-                } else {
-                    logo.style.display = "block";
-                    addStoresToSidebar(false, geofences, userLocation);
-                }
-            }
-
-
-            // add store info to sidebar
-            function addStoresToSidebar(show, geofences, userLocation) {
-                if (show) {
-                    clearSidebar();
-                    geofences.forEach((geofence, index) => {
-                        var rowFooter = footer.insertRow(index);
-                        var geofenceCoords = { "longitude": geofence.geometryCenter.coordinates[0], "latitude": geofence.geometryCenter.coordinates[1] };
-
-                        // TODO - update to Matrix API
-                        // Use Radar Matrix API to get distances from origin point to markers on the map
-                        Radar.getDistance({
-                            origin: {
+            function getMatrices(userLocation, geofenceCoords) {
+                return new Promise((resolve, reject) => {
+                    Radar.getMatrix(
+                        {
+                            origins: [{
                                 latitude: userLocation.latitude,
                                 longitude: userLocation.longitude
-                            },
-                            destination: {
-                                latitude: geofence.geometryCenter.coordinates[1],
-                                longitude: geofence.geometryCenter.coordinates[0]
-                            },
-                            modes: [
-                                'foot',
-                                'car'
-                            ],
+                            }],
+                            destinations: geofenceCoords,
+                            modes: 'car',
                             units: 'imperial'
-                        }, function (err, result) {
-                            if (!err) {
-                                rowFooter.insertCell(0).innerHTML = geofence["description"]
-                                rowFooter.insertCell(1).innerHTML = geofence["metadata"]["Hours"]
-                                rowFooter.insertCell(2).innerHTML = geofence["metadata"]["Wifi"]
-                                rowFooter.insertCell(3).innerHTML = result["routes"]["geodesic"]["distance"]["text"];
-                                // return result.routes.car.distance.text;
+                        }, (err, result) => {
+                            if (err) reject(err);
+                            if(result.matrix) {
+                                resolve(result.matrix);
                             }
-                        });
                     });
-                } else {
-                    // If no stores, clear the sidebar and clear markers
-                    clearSidebar();
-                    clearMarkers();
-                }
-            }
-
-            // clear sidebaqr
-            function clearSidebar() {
-                console.log('clearing sidebidar...row count is ' + table.rows.length);
-                while (table.rows.length > 0) {
-                    table.deleteRow(0);
-                }
-            }
-
-            // debounce function used for handling autocomplete input
-            function debounce(func) {
-                const delay = 100;
-                let debounceTimer;
-                return function (...args) {
-                    const context = this;
-                    clearTimeout(debounceTimer);
-                    debounceTimer = setTimeout(() => func.apply(context, args), delay);
-                }
-            }
-
-            // when autocomplete-input value changes
-            function handleAutocomplete() {
-                const userInput = this.value;
-                if (userInput.length = 0) {
-                    deleteTableRows();
-                    return;
-                }
-
-                const searchValue = document.getElementById("addressSearchInput").value;
-                // Call Radar autocomplete API (https://radar.com/documentation/api#autocomplete) 
-                // to translate user's input into coordinates.
-                Radar.autocomplete({
-                    "query": searchValue,
-                    "limit": 4
-                }, function (err, result) {
-                    if (!err && result["addresses"].length > 0) {
-                        const location = result["addresses"][0];
-                        deleteTableRows();
-                        const addresses = result.addresses;
-
-                        // gather addresses to present to user
-                        for (i = addresses.length - 1; i >= 0; i--) {
-                            var address = addresses[i].formattedAddress;
-                            var row = resultsTable.insertRow(0);
-
-                            var cell = row.insertCell(0);
-                            cell.innerHTML = address;
-                            cell.onclick = function () { setSearchInputWithValue(this) };
-                        }
-                    };
                 });
             }
+            function prepareSidebar(destinationList, matrixList) {
+                return destinationList.map((dest, i) => {
+                    const { description, metadata } = dest;
+                    const matrixResults = matrixList[0].find(res => res.destinationIndex === i);
+                    const preparedItem = {
+                        description,
+                        hours: metadata.Hours,
+                        wifi: metadata.Wifi,
+                        matrixResults
+                    }
+                    return preparedItem;
+                });
+            }
+            function renderSidebar(sidebarList, containerId) {
+                const containerEl = document.getElementById(containerId);
+                const itemsExist = sidebarList.length > 0;
 
-            function setSearchInputWithValue(cell) {
-                document.getElementById("addressSearchInput").value = cell.innerHTML;
-                deleteTableRows();
+                if (itemsExist) {
+                    const renderedItems = sidebarList.reduce((prev, curr) => {
+                        const item = `
+                            <tr class="table-row">
+                                <td>${curr.description}</td>
+                                <td>${curr.hours}</td>
+                                <td>${curr.wifi}</td>
+                                <td>${curr.matrixResults.duration.text}</td>
+                            </tr>`;
+                        return `${prev}${item}`;
+                        }, "");
+
+                    containerEl.innerHTML = `
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Store Name</th>
+                                    <th scope="col">Hours</th>
+                                    <th scope="col">Wifi?</th>
+                                    <th scope="col">Distance</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${renderedItems}
+                            </tbody>
+                        </table>`;
+                } else {
+                    containerEl.innerHTML = `<div class="not-found">No stores found. Please try another area.</div>`;
+                }
             }
 
-            //Autocomplete results are stored in an HTML table
-            function deleteTableRows() {
-                while (table.rows.length > 0) {
-                    table.deleteRow(0);
-                }
-                while (resultsTable.rows.length > 0) {
-                    resultsTable.deleteRow(0);
+            /** 
+             * Responsible for updating store info, including
+             * adding map markers and updating the sidebar.
+             * Takes result from Radar.searchGeofences() and generates:
+             *  - markers
+             *  - sidebar elements
+             */
+            function updateStores(show, geofences, userLocation) {
+                let geofenceCoords = [];
+                clearMarkers();
+                if (show) {
+                    logo.style.display = "none";
+                    geofences.forEach(geofence => {
+                        const { geometryCenter, description, metadata } = geofence;
+                        addMarker('result', geometryCenter.coordinates, description, metadata, location);
+
+                        const fenceCoords = { 
+                            "longitude": geometryCenter.coordinates[0], 
+                            "latitude": geometryCenter.coordinates[1]
+                        }
+                        geofenceCoords.push(fenceCoords);
+                    });
+                    getMatrices(userLocation, geofenceCoords)
+                        .then(matrices => {
+                            const preparedSidebarItems = prepareSidebar(geofences, matrices);
+                            renderSidebar(preparedSidebarItems, "storeListings");
+                        }).catch(err => {
+                            throw(err)
+                        });
+                } else {
+                    logo.style.display = "block";
+                    renderSidebar([], "storeListings");
                 }
             }
         </script>
